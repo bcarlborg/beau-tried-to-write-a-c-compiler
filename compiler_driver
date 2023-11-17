@@ -1,8 +1,27 @@
 #!/bin/bash
-touch /tmp/compiler_driver_output1.i
 
-gcc -E -P $1 -o /tmp/compiler_driver_output1.i
+#
+# Run the preprocessor
+#
+gcc -E -P  "$1" -o /tmp/compiler_driver_output1.i
 
+#
+# Run our compiler
+# TODO: currently only stubbed out version
+#
 gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none /tmp/compiler_driver_output1.i -o /tmp/compiler_driver_output1.s
 
-gcc /tmp/compiler_driver_output1.s -o $2
+#
+# Generate the output filename
+#
+DIR_NAME=$(dirname "$1")
+FILE_NAME=$(basename "$1")
+FILE_NAME_WITHOUT_EXTENSION=${FILE_NAME%.*}
+OUTPUT_FILE_NAME="${DIR_NAME}/${FILE_NAME_WITHOUT_EXTENSION}"
+
+echo "output file name: ${OUTPUT_FILE_NAME}"
+
+#
+# Run the assembler
+#
+gcc /tmp/compiler_driver_output1.s -o "${OUTPUT_FILE_NAME}"
