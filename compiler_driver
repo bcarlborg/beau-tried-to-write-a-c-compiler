@@ -1,15 +1,24 @@
 #!/bin/bash
 
+# set -e will cause our script to exit if any command in the script fails
+set -e 
+
+#
+# Stub out names for the intermediate files this script uses
+#
+PRE_PROCESSED_FILE="/tmp/compiler_driver_output2.i"
+ASSEMBLY_FILE="/tmp/compiler_driver_output2.s"
+
 #
 # Run the preprocessor
 #
-gcc -E -P  "$1" -o /tmp/compiler_driver_output1.i
+gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
 
 #
 # Run our compiler
 # TODO: currently only stubbed out version
 #
-gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none /tmp/compiler_driver_output1.i -o /tmp/compiler_driver_output1.s
+gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
 
 #
 # Generate the output filename
@@ -24,4 +33,10 @@ echo "output file name: ${OUTPUT_FILE_NAME}"
 #
 # Run the assembler
 #
-gcc /tmp/compiler_driver_output1.s -o "${OUTPUT_FILE_NAME}"
+gcc "${ASSEMBLY_FILE}" -o "${OUTPUT_FILE_NAME}"
+
+#
+# cleanup /tmp files
+#
+rm "${PRE_PROCESSED_FILE}"
+rm "${ASSEMBLY_FILE}"
