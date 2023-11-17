@@ -10,6 +10,32 @@ PRE_PROCESSED_FILE="/tmp/compiler_driver_output2.i"
 ASSEMBLY_FILE="/tmp/compiler_driver_output2.s"
 
 #
+# Generate the output filename
+#
+DIR_NAME=$(dirname "$1")
+FILE_NAME=$(basename "$1")
+FILE_NAME_WITHOUT_EXTENSION=${FILE_NAME%.*}
+OUTPUT_FILE_NAME="${DIR_NAME}/${FILE_NAME_WITHOUT_EXTENSION}"
+
+#
+# Parse arguments
+#
+POSITIONAL_ARGS=()
+while [ $# -gt 0 ]; do
+    case $1 in
+        --lex) ARGS="--lex";;
+        --parse) ARGS="--parse";;
+        --codegen) ARGS="--codegen";;
+        *) POSITIONAL_ARGS+=("$1");;
+    esac
+    shift
+done
+
+# restore positional parameters
+set -- "${POSITIONAL_ARGS[@]}" 
+
+
+#
 # Run the preprocessor
 #
 gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
@@ -20,13 +46,6 @@ gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
 #
 gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
 
-#
-# Generate the output filename
-#
-DIR_NAME=$(dirname "$1")
-FILE_NAME=$(basename "$1")
-FILE_NAME_WITHOUT_EXTENSION=${FILE_NAME%.*}
-OUTPUT_FILE_NAME="${DIR_NAME}/${FILE_NAME_WITHOUT_EXTENSION}"
 
 echo "output file name: ${OUTPUT_FILE_NAME}"
 
