@@ -7,7 +7,17 @@ set -e
 # Stub out names for the intermediate files this script uses
 #
 PRE_PROCESSED_FILE="/tmp/compiler_driver_output2.i"
+touch "${PRE_PROCESSED_FILE}"
 ASSEMBLY_FILE="/tmp/compiler_driver_output2.s"
+touch "${ASSEMBLY_FILE}"
+
+#
+# cleanup /tmp files
+#
+cleanup_temp_files() {
+  rm "${PRE_PROCESSED_FILE}"
+  rm "${ASSEMBLY_FILE}"
+}
 
 #
 # Generate the output filename
@@ -20,12 +30,14 @@ OUTPUT_FILE_NAME="${DIR_NAME}/${FILE_NAME_WITHOUT_EXTENSION}"
 #
 # Parse arguments
 #
+EXIT_AFTER_ASSEMBLY=""
 POSITIONAL_ARGS=()
 while [ $# -gt 0 ]; do
     case $1 in
         --lex) ARGS="--lex";;
         --parse) ARGS="--parse";;
         --codegen) ARGS="--codegen";;
+        -S) EXIT_AFTER_ASSEMBLY="true";;
         *) POSITIONAL_ARGS+=("$1");;
     esac
     shift
@@ -47,15 +59,14 @@ gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
 gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
 
 
-echo "output file name: ${OUTPUT_FILE_NAME}"
+if [ "$EXIT_AFTER_ASSEMBLY" = "true" ]; then
+  cp "${ASSEMBLY_FILE}" "${OUTPUT_FILE_NAME}.s"
+  cleanup_temp_files
+  exit 0;
+fi
 
 #
 # Run the assembler
 #
 gcc "${ASSEMBLY_FILE}" -o "${OUTPUT_FILE_NAME}"
-
-#
-# cleanup /tmp files
-#
-rm "${PRE_PROCESSED_FILE}"
-rm "${ASSEMBLY_FILE}"
+cleanup_temp_files
