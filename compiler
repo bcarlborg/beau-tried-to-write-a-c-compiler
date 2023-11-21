@@ -1,3 +1,203 @@
 #!/usr/bin/env node
 
-console.log('testy');
+
+/////////////////////////////////////////////////////////////////
+// Program wide constants and helpers
+/////////////////////////////////////////////////////////////////
+
+const ERROR_SUCCESS_CODE = 0;
+const ERROR_EXIT_CODE = 1;
+
+const exitSuccess = () => process.exit(ERROR_SUCCESS_CODE);
+const exitError = () => process.exit(ERROR_EXIT_CODE);
+
+let isDebugModeOn = false;
+
+const debugLog = (...logContent) => {
+  if (!isDebugModeOn) return;
+
+  if (logContent.length > 0) {
+    console.log('[debug] '.concat(logContent.join(' ')));
+  } else {
+    console.log();
+  }
+}
+
+
+/////////////////////////////////////////////////////////////////
+// Helpers and constants for parsing the script args and options
+/////////////////////////////////////////////////////////////////
+
+//
+// Usage and help messages
+//
+const USAGE_MESSAGE = "Usage: compiler [options] input_source_file -o output_file";
+const OPTIONS_HELP_TEXT = "Options\n"
+                          + "  -h --help               Print this help message\n"
+                          + "  -o output_file          [required] Specifies the file to output our assembly to\n"
+                          + "  --parse                 Stop the compilation process after parsing, exit with 0 if successful, 1 otherwise\n"
+                          + "  --lex                   Stop the compilation process after lexing, exit with 0 if successful, 1 otherwise\n"
+                          + "                          (this option overrides the --parse flag if both are set)\n";
+
+//
+// Helper to print help text and exit with success code
+//
+const printHelpTextAndExitWithSuccessCode = () => {
+  console.log(USAGE_MESSAGE);
+  console.log();
+  console.log(OPTIONS_HELP_TEXT);
+  console.log();
+  exitSuccess();
+}
+
+//
+// Some error messages for invalid arguments
+//      
+const MISSING_OUTPUT_FILE_ERROR_MESSAGE = 'Must include output file in compiler invovation';
+const MISSING_INPUT_FILE_ERROR_MESSAGE = 'Must include one input source file in compiler invovation';
+
+
+//
+// Helper to print invalid arguments error message and exit program execution
+//
+const printInvalidArgsMessageAndExitWithErrorCode = (errorMessage, secondaryMessage) => {
+  console.log('Invalid Arguments'.concat(errorMessage ? `: ${errorMessage}` : ''));
+  if (secondaryMessage) console.log('  '.concat(secondaryMessage));
+  console.log();
+  console.log(USAGE_MESSAGE);
+  console.log();
+  process.exit(ERROR_EXIT_CODE);
+}
+
+
+/////////////////////////////////////////////////////////////////
+// Now lets parse the executable args
+/////////////////////////////////////////////////////////////////
+
+//
+// to start let's get the args from process.argv
+//
+// process.argv[0] is the path to our node executable
+// process.argv[1] is the path to this script
+// process.argv[2] is the first arg passed to this script
+const scriptArgs = process.argv.slice(2)
+
+//
+// Check if the debug flag is set
+//
+// first lets do a pass over the args and see if -h or --help is specfied. If so, we will
+// output the help text and exit the program successfully
+isDebugModeOn = scriptArgs.find((arg) => arg === '--debug');
+
+//
+// Check if the help flags are set and maybe exit early
+//
+// first lets do a pass over the args and see if -h or --help is specfied. If so, we will
+// output the help text and exit the program successfully
+if (scriptArgs.find((arg) => arg === '-h' || arg === '--help')) {
+  printHelpTextAndExitWithSuccessCode();
+}
+
+//
+// These are the bits of information we are trying to pull out of our args
+//
+// After looping over the args, we want to know the path to the input source
+// file as well as the output source file, we also want to know what options
+// were set using arguments
+let inputSourceFile;
+let outputFile;
+let stopAfterLexingOptionSet = false;
+let stopAfterParsingOptionSet = false;
+
+//
+// Helper predicate to determine if an arg is an option
+//
+const argIsOptionSyntax = (arg) => arg.search(/^-/) !== -1;
+
+//
+// Now lets loop over our args and process them
+//
+for (let currentArgsIndex = 0; currentArgsIndex < scriptArgs.length; currentArgsIndex++) {
+  const currentArg = scriptArgs[currentArgsIndex];
+
+  //
+  // If arg looks like the output specifying option
+  //
+  if (currentArg === '-o') {
+    const nextArgIndex = currentArgsIndex + 1;
+
+    // ensure there there is an output file arg we can consume
+    if (nextArgIndex >= scriptArgs.length) {
+      printInvalidArgsMessageAndExitWithErrorCode(MISSING_OUTPUT_FILE_ERROR_MESSAGE);
+    }
+
+    // store the output file
+    outputFile = scriptArgs[nextArgIndex];
+
+    // advance the current index so we don't process the output file arg twice
+    currentArgsIndex++;
+
+    // start the loop again
+    continue;
+  }
+
+  //
+  // Check for flag options
+  //
+  if (argIsOptionSyntax(currentArg)) {
+    switch (currentArg) {
+      case '--lex':
+        stopAfterLexingOptionSet = true;
+        break;
+      case '--parse':
+        stopAfterParsingOptionSet = true;
+        break;
+    }
+  }
+
+  //
+  // If arg is not an option, it specifies a file
+  //
+  if (!argIsOptionSyntax(currentArg)) {
+    // if the input source file isn't already set, we can store this
+    // args as the input source and go to the next invocation
+    if (!inputSourceFile) {
+      inputSourceFile = currentArg;
+      continue;
+
+    } else {
+      printInvalidArgsMessageAndExitWithErrorCode(
+        MISSING_INPUT_FILE_ERROR_MESSAGE,
+        `at least two input source files specificed: ${inputSourceFile} and ${currentArg}`
+      );
+    }
+  }
+}
+
+//
+// We require an input source file to be specified
+//
+if (!inputSourceFile) {
+  printInvalidArgsMessageAndExitWithErrorCode(
+    MISSING_INPUT_FILE_ERROR_MESSAGE
+  );
+}
+
+//
+// We also require an output file to be specified
+//
+if (!outputFile) {
+  printInvalidArgsMessageAndExitWithErrorCode(
+    MISSING_OUTPUT_FILE_ERROR_MESSAGE 
+  );
+}
+
+//
+// Use debug log to indicate what information we've extracted from the command line args
+//
+debugLog('executable argument parsing complete: extracted the following from the command line arguments');
+debugLog('  - inputSourceFile:', inputSourceFile);
+debugLog('  - outputFile:', outputFile);
+debugLog('  - stopAfterLexingOptionSet:', stopAfterLexingOptionSet);
+debugLog('  - stopAfterParsingOptionSet:', stopAfterParsingOptionSet);
+debugLog();
