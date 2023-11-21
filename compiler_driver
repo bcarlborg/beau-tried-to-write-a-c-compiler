@@ -138,11 +138,9 @@ gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
 #####################################################################
 
 #
-# TODO: call our commpiler instead of gcc
-# TODO: pass args to the compiler
+# Call the compiler
 #
 ${COMPILER} ${COMPILER_DEBUG_FLAG} ${COMPILER_LEX_FLAG} ${COMPILER_PARSE_FLAG} -o ${ASSEMBLY_FILE} ${PRE_PROCESSED_FILE}
-# gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
 
 #
 # if --lex or --parse were passed, then we don't want to continue
