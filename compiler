@@ -37,7 +37,8 @@ const OPTIONS_HELP_TEXT = "Options\n"
                           + "  -o output_file          [required] Specifies the file to output our assembly to\n"
                           + "  --parse                 Stop the compilation process after parsing, exit with 0 if successful, 1 otherwise\n"
                           + "  --lex                   Stop the compilation process after lexing, exit with 0 if successful, 1 otherwise\n"
-                          + "                          (this option overrides the --parse flag if both are set)\n";
+                          + "                          (this option overrides the --parse flag if both are set)\n"
+                          + "  --debug                 if set, additional information will be output to stdin during the compliation process\n"
 
 //
 // Helper to print help text and exit with success code
