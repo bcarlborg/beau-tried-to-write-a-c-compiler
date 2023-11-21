@@ -1,6 +1,8 @@
 #!/bin/bash
 
+#
 # set -e will cause our script to exit if any command in the script fails
+#
 set -e 
 
 #####################################################################
@@ -28,8 +30,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+#
 # set the scripts arguments to be the positional parameters with the
 # options removed
+#
 set -- "${POSITIONAL_ARGS[@]}" 
 
 
