@@ -3,8 +3,75 @@
 # set -e will cause our script to exit if any command in the script fails
 set -e 
 
+#####################################################################
+# Parse the input options and positional arguments
+#####################################################################
+
+# 
+# loop over all arguments to the script
+# ARGS is set to the option that will take effect
+# POSITIONAL_ARGS is set to the first positinal argument (the source file)
+# 
+
+POSITIONAL_ARGS=()
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -h) ARGS="--help";;
+        -help) ARGS="--help";;
+        --lex) ARGS="--lex";;
+        --parse) ARGS="--parse";;
+        --codegen) ARGS="--codegen";;
+        -S) ARGS="-S";;
+        *) POSITIONAL_ARGS+=("$1");;
+    esac
+    shift
+done
+
+# set the scripts arguments to be the positional parameters with the
+# options removed
+set -- "${POSITIONAL_ARGS[@]}" 
+
+
+#####################################################################
+# Maybe output help text and exit early
+#####################################################################
+
 #
-# Stub out names for the intermediate files this script uses
+# Helper to output help text
+#
+output_help_text() {
+  echo "Usage: compiler_driver [options] [path]"
+  echo
+  echo "This command only handles one option. The last option provided will take precedence over"
+  echo "any of the earlier options"
+  echo
+  echo "Options"
+  echo "  -h --help    Print this help screen"
+  echo "  --lex        Run only the lexer. Exit with status code of lexer. Does" 
+  echo "               not generate an output file"
+  echo "  --parse      Run the lexer then the parser. Exit with status code of"
+  echo "               parser. Does not generate an output file"
+  echo "  --codegen    Run the lexer, parser, and assembly generator and exit with" 
+  echo "               status code of assembly generator. Does not generate an output"
+  echo "               file"
+  echo "  -S           Directs compiler to emit assembly output file with .s extension"
+  echo "               but will not link or assemble"
+}
+
+if [ "$ARGS" = "--help" ]; then
+  output_help_text
+  exit 0
+fi
+
+
+#####################################################################
+# Create intermediate and output files
+#####################################################################
+
+#
+# If we get here, it means that we are going to need some intermediate files
+# for our program to use. Lets create those here and create those here
 #
 PRE_PROCESSED_FILE="/tmp/compiler_driver_output2.i"
 touch "${PRE_PROCESSED_FILE}"
@@ -12,15 +79,7 @@ ASSEMBLY_FILE="/tmp/compiler_driver_output2.s"
 touch "${ASSEMBLY_FILE}"
 
 #
-# cleanup /tmp files
-#
-cleanup_temp_files() {
-  rm "${PRE_PROCESSED_FILE}"
-  rm "${ASSEMBLY_FILE}"
-}
-
-#
-# Generate the output filename
+# Lets also setup any output file names we will need
 #
 DIR_NAME=$(dirname "$1")
 FILE_NAME=$(basename "$1")
@@ -28,45 +87,77 @@ FILE_NAME_WITHOUT_EXTENSION=${FILE_NAME%.*}
 OUTPUT_FILE_NAME="${DIR_NAME}/${FILE_NAME_WITHOUT_EXTENSION}"
 
 #
-# Parse arguments
+# Helper to cleanup intermediate files
 #
-EXIT_AFTER_ASSEMBLY=""
-POSITIONAL_ARGS=()
-while [ $# -gt 0 ]; do
-    case $1 in
-        --lex) ARGS="--lex";;
-        --parse) ARGS="--parse";;
-        --codegen) ARGS="--codegen";;
-        -S) EXIT_AFTER_ASSEMBLY="true";;
-        *) POSITIONAL_ARGS+=("$1");;
-    esac
-    shift
-done
+cleanup_tmp_files() {
+  rm "${PRE_PROCESSED_FILE}"
+  rm "${ASSEMBLY_FILE}"
+}
 
-# restore positional parameters
-set -- "${POSITIONAL_ARGS[@]}" 
+#
+# Helper to cleanup intermediate files and exit
+#
+cleanup_and_exit_with_code() {
+  cleanup_tmp_files
+  exit "$1"
+}
 
 
 #
+# Register handler to cleanup our files if we exit prematurely
+#
+trap 'cleanup_tmp_files' ERR
+
+
+#####################################################################
 # Run the preprocessor
+#####################################################################
+
+#
+# Using gcc as our preprocessor
 #
 gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
 
+
+#####################################################################
+# Run the compiler and maybe exit after depending on flags
+#####################################################################
+
 #
-# Run our compiler
-# TODO: currently only stubbed out version
+# TODO: call our commpiler instead of gcc
+# TODO: pass args to the compiler
 #
 gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
 
-
-if [ "$EXIT_AFTER_ASSEMBLY" = "true" ]; then
-  cp "${ASSEMBLY_FILE}" "${OUTPUT_FILE_NAME}.s"
-  cleanup_temp_files
-  exit 0;
+#
+# if --lex or --parse were passed, then we don't want to continue
+# executing the script
+#
+if [ "$ARGS" = "--lex" ] || [ "$ARGS" = "--parse" ]; then
+  cleanup_and_exit_with_code 0
 fi
 
 #
+# if -S was passed, we want to exit before linking and assembling and output an assembly file
+#
+if [ "$ARGS" = "-S" ]; then
+  cp "${ASSEMBLY_FILE}" "${OUTPUT_FILE_NAME}.s"
+  cleanup_and_exit_with_code 0
+fi
+
+
+#####################################################################
 # Run the assembler
+#####################################################################
+
+#
+# Using gcc as out assembler for now
 #
 gcc "${ASSEMBLY_FILE}" -o "${OUTPUT_FILE_NAME}"
-cleanup_temp_files
+
+
+#####################################################################
+# cleanup and get oooouta here!
+#####################################################################
+
+cleanup_and_exit_with_code 0
