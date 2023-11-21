@@ -16,13 +16,17 @@ set -e
 # 
 
 POSITIONAL_ARGS=()
+COMPILER_PARSE_FLAG=""
+COMPILER_LEX_FLAG=""
+COMPILER_DEBUG_FLAG=""
 
 while [ $# -gt 0 ]; do
     case $1 in
         -h) ARGS="--help";;
         -help) ARGS="--help";;
-        --lex) ARGS="--lex";;
-        --parse) ARGS="--parse";;
+        --lex) COMPILER_LEX_FLAG="--lex";;
+        --parse) COMPILER_PARSE_FLAG="--parse";;
+        --compiler-debug) COMPILER_DEBUG_FLAG="--debug";;
         --codegen) ARGS="--codegen";;
         -S) ARGS="-S";;
         *) POSITIONAL_ARGS+=("$1");;
@@ -51,16 +55,18 @@ output_help_text() {
   echo "any of the earlier options"
   echo
   echo "Options"
-  echo "  -h --help    Print this help screen"
-  echo "  --lex        Run only the lexer. Exit with status code of lexer. Does" 
-  echo "               not generate an output file"
-  echo "  --parse      Run the lexer then the parser. Exit with status code of"
-  echo "               parser. Does not generate an output file"
-  echo "  --codegen    Run the lexer, parser, and assembly generator and exit with" 
-  echo "               status code of assembly generator. Does not generate an output"
-  echo "               file"
-  echo "  -S           Directs compiler to emit assembly output file with .s extension"
-  echo "               but will not link or assemble"
+  echo "  -h --help            Print this help screen"
+  echo "  --lex                Run only the lexer. Exit with status code of lexer. Does"
+  echo "                       not generate an output file"
+  echo "  --parse              Run the lexer then the parser. Exit with status code of"
+  echo "                       parser. Does not generate an output file"
+  echo "  --codegen            Run the lexer, parser, and assembly generator and exit with"
+  echo "                       status code of assembly generator. Does not generate an output"
+  echo "                       file"
+  echo "  -S                   Directs compiler to emit assembly output file with .s extension"
+  echo "                       but will not link or assemble"
+  echo "  --compiler-debug     If set, the compiler will output additional information to stdin"
+  echo "                       during the compilation process"
 }
 
 if [ "$ARGS" = "--help" ]; then
@@ -91,6 +97,11 @@ FILE_NAME_WITHOUT_EXTENSION=${FILE_NAME%.*}
 OUTPUT_FILE_NAME="${DIR_NAME}/${FILE_NAME_WITHOUT_EXTENSION}"
 
 #
+# Let's also use this time to find the path to our compiler
+#
+COMPILER="$(dirname "$0")/compiler"
+
+#
 # Helper to cleanup intermediate files
 #
 cleanup_tmp_files() {
@@ -105,7 +116,6 @@ cleanup_and_exit_with_code() {
   cleanup_tmp_files
   exit "$1"
 }
-
 
 #
 # Register handler to cleanup our files if we exit prematurely
@@ -131,7 +141,8 @@ gcc -E -P  "$1" -o "${PRE_PROCESSED_FILE}"
 # TODO: call our commpiler instead of gcc
 # TODO: pass args to the compiler
 #
-gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
+${COMPILER} ${COMPILER_DEBUG_FLAG} ${COMPILER_LEX_FLAG} ${COMPILER_PARSE_FLAG} -o ${ASSEMBLY_FILE} ${PRE_PROCESSED_FILE}
+# gcc -S -O -fno-asynchronous-unwind-tables -fcf-protection=none "${PRE_PROCESSED_FILE}" -o "${ASSEMBLY_FILE}"
 
 #
 # if --lex or --parse were passed, then we don't want to continue
