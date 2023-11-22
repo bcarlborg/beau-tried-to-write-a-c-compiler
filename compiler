@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+const { debug } = require('console');
+const fs = require('fs');
+const { LanguageServiceMode } = require('typescript');
 
 /////////////////////////////////////////////////////////////////
 // Program wide constants and helpers
@@ -196,9 +199,230 @@ if (!outputFile) {
 //
 // Use debug log to indicate what information we've extracted from the command line args
 //
-debugLog('executable argument parsing complete: extracted the following from the command line arguments');
+debugLog('---------------------------------------------');
+debugLog('COMMAND LINE ARG PARSING');
+debugLog('Results of parsing command line arguments');
 debugLog('  - inputSourceFile:', inputSourceFile);
 debugLog('  - outputFile:', outputFile);
 debugLog('  - stopAfterLexingOptionSet:', stopAfterLexingOptionSet);
 debugLog('  - stopAfterParsingOptionSet:', stopAfterParsingOptionSet);
 debugLog();
+
+/////////////////////////////////////////////////////////////////
+// Lex our input source file
+/////////////////////////////////////////////////////////////////
+debugLog('---------------------------------------------');
+debugLog('LEXING');
+
+//
+// The output from the lexing stage will be list of tokens
+//
+const tokens = [];
+
+//
+// Each of those tokens will have a tokenType field that has one
+// of the token types below
+//
+const TOKEN_TYPES = {
+  LEFT_PAREN: 'LEFT_PAREN',
+  RIGHT_PAREN: 'RIGHT_PAREN',
+  OPEN_BRACE: 'OPEN_BRACE',
+  CLOSE_BRACE: 'CLOSE_BRACE',
+  SEMI_COLON: 'SEMI_COLON',
+  INT_KEYWORD: 'INT_KEYWORD',
+  VOID_KEYWORD: 'VOID_KEYWORD',
+  RETURN_KEYWORD: 'RETURN_KEYWORD',
+  IDENTIFIER: 'IDENTIFIER',
+  CONSTANT: 'CONSTANT',
+};
+
+//
+// While parsing the input text, we will use a number of predicate
+// helpers that make it easy to identify which character class a
+// specific character is part of
+//
+const isLowerCaseCharacter = (char) =>
+  char.charCodeAt(0) >= 'a'.charCodeAt(0)
+  && char.charCodeAt(0) <= 'z'.charCodeAt(0);
+
+const isUpperCaseCharacter = (char) =>
+  char.charCodeAt(0) >= 'A'.charCodeAt(0)
+  && char.charCodeAt(0) <= 'Z'.charCodeAt(0);
+
+const isAlphabetCharacter = (char) =>
+  isLowerCaseCharacter(char)
+  || isUpperCaseCharacter(char);
+
+const isNumericCharacter = (char) =>
+  char.charCodeAt(0) >= '0'.charCodeAt(0)
+  && char.charCodeAt(0) <= '9'.charCodeAt(0);
+
+const isAlphaNumericCharacter = (char) =>
+  isAlphabetCharacter(char)
+  || isNumericCharacter(char);
+
+const isIdentifierStartingCharacter = (char) =>
+  isAlphabetCharacter(char)
+  || char === '_';
+
+const isIdentifierNonStartingCharacter = (char) =>
+  isAlphaNumericCharacter(char)
+  || char === '_';
+
+const isWhiteSpaceCharacter = (char) =>
+  char.charCodeAt(0) === 32 // space
+  || char.charCodeAt(0) === 9 // tab
+  || char.charCodeAt(0) === 10 // line feed
+  || char.charCodeAt(0) === 13 // carriage return
+
+//
+// Let's get the text from our input source file.
+// readFileSync() will output a buffer of bytes for us to read
+//
+const sourceFileTextBuffer = fs.readFileSync(inputSourceFile);
+
+debugLog('bcalrborg incoming program text:');
+debugLog(sourceFileTextBuffer);
+debugLog();
+
+//
+// We are going to loop over the bytes in our input one at a time.
+// Sometimes, we will need to look ahead a few bytes from our current Index,
+// in these cases we will use runner to look ahead.
+//
+let currentIndex = 0;
+let runner = 1;
+
+//
+// Now lets build some helpers for easily viewing the current and upcoming
+// characters in our input buffer
+//
+const currentChar = () => String.fromCharCode(sourceFileTextBuffer[currentIndex]);
+
+//
+// advance will increment our currentIndex and take us to the next character
+//
+const advance = (charactersAhead) => {
+  currentIndex += charactersAhead;
+}
+
+//
+// peek will return characters ahead of our current index based on charactersAhead.
+// if charactersAhead is 2, we look two characters ahead of the current char
+//
+const peek = (charactersAhead) => {
+  const peekIndex = currentIndex + charactersAhead;
+
+  if (peekIndex >= sourceFileTextBuffer.length) {
+    return 0;
+  }
+
+  return String.fromCharCode(sourceFileTextBuffer[peekIndex]);
+}
+
+//
+// Now we will loop over the characters in our input and add tokens
+// as we go.
+//
+while (currentIndex < sourceFileTextBuffer.length) {
+  switch (true) {
+    case isWhiteSpaceCharacter(currentChar()):
+      advance(1);
+      break;
+    case currentChar() === '(':
+      tokens.push({tokenType: TOKEN_TYPES.LEFT_PAREN});
+      advance(1);
+      break;
+    case currentChar() === ')':
+      tokens.push({tokenType: TOKEN_TYPES.RIGHT_PAREN});
+      advance(1);
+      break;
+    case currentChar() === ';':
+      tokens.push({tokenType: TOKEN_TYPES.SEMI_COLON});
+      advance(1);
+      break;
+    case currentChar() === '{':
+      tokens.push({tokenType: TOKEN_TYPES.OPEN_BRACE});
+      advance(1);
+      break;
+    case currentChar() === '}':
+      tokens.push({tokenType: TOKEN_TYPES.CLOSE_BRACE});
+      advance(1);
+      break;
+    case currentChar() === 'i':
+      if (peek(1) === 'n' && peek(2) === 't') {
+        tokens.push({ tokenType: TOKEN_TYPES.INT_KEYWORD})
+        advance(3);
+        break;
+      }
+    case currentChar() === 'v':
+      if (peek(1) === 'o' && peek(2) === 'i' && peek(3) === 'd') {
+        tokens.push({ tokenType: TOKEN_TYPES.VOID_KEYWORD})
+        advance(4);
+        break;
+      }
+    case currentChar() === 'r':
+      if (peek(1) === 'e' && peek(2) === 't' && peek(3) === 'u' && peek(4) === 'r' && peek(5) === 'n') {
+        tokens.push({ tokenType: TOKEN_TYPES.RETURN_KEYWORD})
+        advance(6);
+        break;
+      }
+    case isIdentifierStartingCharacter(currentChar()):
+      const identifierCharacters = [currentChar()];
+      runner = 1;
+      while (isIdentifierNonStartingCharacter(peek(runner))) {
+        identifierCharacters.push(peek(runner))
+        runner += 1;
+      }
+      const identifier = identifierCharacters.join('');
+      tokens.push({ tokenType: TOKEN_TYPES.IDENTIFIER, text: identifier })
+      advance(runner);
+      break;
+    case isNumericCharacter(currentChar()):
+      const constantCharacters = [currentChar()];
+      runner = 1;
+      while (isNumericCharacter(peek(runner))) {
+        constantCharacters.push(peek(runner))
+        runner += 1;
+      }
+      const constant = constantCharacters.join('');
+      tokens.push({ tokenType: TOKEN_TYPES.CONSTANT, text: constant })
+      advance(runner);
+      break;
+    default:
+      console.error(
+        "Lexing error: unknown character with ascii code:", currentChar().codePointAt(0)
+      );
+      exitError();
+  }
+}
+
+debugLog('tokens lexed from program text:')
+debugLog(...tokens.map(token => {
+  if (
+    token.tokenType === TOKEN_TYPES.IDENTIFIER
+    || token.tokenType === TOKEN_TYPES.CONSTANT
+  ) {
+    return [token.tokenType, ':', token.text].join('');
+  }
+
+  return token.tokenType
+}));
+debugLog();
+
+if (stopAfterLexingOptionSet) {
+  debugLog('Exiting program execution after lexing because --lex was set');
+  exitSuccess();
+}
+
+/////////////////////////////////////////////////////////////////
+// Parse the tokens we found
+/////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////
+// Create our output file
+/////////////////////////////////////////////////////////////////
+
+fs.writeFileSync(outputFile, 'foobar\n');
+exitSuccess();
