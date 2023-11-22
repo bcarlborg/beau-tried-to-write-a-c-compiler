@@ -2,25 +2,34 @@
 
 const { debug } = require('console');
 const fs = require('fs');
-const { LanguageServiceMode } = require('typescript');
 
 /////////////////////////////////////////////////////////////////
 // Program wide constants and helpers
 /////////////////////////////////////////////////////////////////
 
+//
+// Some helpers for terminating the program execution
+//
 const ERROR_SUCCESS_CODE = 0;
 const ERROR_EXIT_CODE = 1;
-
 const exitSuccess = () => process.exit(ERROR_SUCCESS_CODE);
 const exitError = () => process.exit(ERROR_EXIT_CODE);
 
+//
+// We will set isDebugModeOn to true if --debug is passed as a
+// command line flag
+//
 let isDebugModeOn = false;
 
+//
+// debugLog() is used to output text to stdin when --debug is passed
+// to the executable
+//
 const debugLog = (...logContent) => {
   if (!isDebugModeOn) return;
 
   if (logContent.length > 0) {
-    console.log('[debug] '.concat(logContent.join(' ')));
+    console.log('[debug] ', ...logContent);
   } else {
     console.log();
   }
@@ -281,9 +290,10 @@ const isWhiteSpaceCharacter = (char) =>
 //
 const sourceFileTextBuffer = fs.readFileSync(inputSourceFile);
 
-debugLog('bcalrborg incoming program text:');
+debugLog('bcalrborg incoming program buffer bytes:');
 debugLog(sourceFileTextBuffer);
-debugLog();
+debugLog('bcalrborg incoming program buffer string:');
+debugLog(sourceFileTextBuffer.toString('ascii'));
 
 //
 // We are going to loop over the bytes in our input one at a time.
@@ -329,67 +339,118 @@ while (currentIndex < sourceFileTextBuffer.length) {
     case isWhiteSpaceCharacter(currentChar()):
       advance(1);
       break;
+
     case currentChar() === '(':
       tokens.push({tokenType: TOKEN_TYPES.LEFT_PAREN});
       advance(1);
       break;
+
     case currentChar() === ')':
       tokens.push({tokenType: TOKEN_TYPES.RIGHT_PAREN});
       advance(1);
       break;
+
     case currentChar() === ';':
       tokens.push({tokenType: TOKEN_TYPES.SEMI_COLON});
       advance(1);
       break;
+
     case currentChar() === '{':
       tokens.push({tokenType: TOKEN_TYPES.OPEN_BRACE});
       advance(1);
       break;
+
     case currentChar() === '}':
       tokens.push({tokenType: TOKEN_TYPES.CLOSE_BRACE});
       advance(1);
       break;
+
     case currentChar() === 'i':
       if (peek(1) === 'n' && peek(2) === 't') {
         tokens.push({ tokenType: TOKEN_TYPES.INT_KEYWORD})
         advance(3);
         break;
       }
+
     case currentChar() === 'v':
       if (peek(1) === 'o' && peek(2) === 'i' && peek(3) === 'd') {
         tokens.push({ tokenType: TOKEN_TYPES.VOID_KEYWORD})
         advance(4);
         break;
       }
+
     case currentChar() === 'r':
       if (peek(1) === 'e' && peek(2) === 't' && peek(3) === 'u' && peek(4) === 'r' && peek(5) === 'n') {
         tokens.push({ tokenType: TOKEN_TYPES.RETURN_KEYWORD})
         advance(6);
         break;
       }
+
     case isIdentifierStartingCharacter(currentChar()):
+      //
+      // as we look ahead and find new characters to go in this identifier
+      // we will put them in identifierCharacters
+      //
       const identifierCharacters = [currentChar()];
+
+      //
+      // use the runner to look ahead and keep checking if the characters
+      // are valid identifier chars
+      //
       runner = 1;
       while (isIdentifierNonStartingCharacter(peek(runner))) {
         identifierCharacters.push(peek(runner))
         runner += 1;
       }
+
+      //
+      // Finally take all the chars we found and make a string of them
+      //
       const identifier = identifierCharacters.join('');
       tokens.push({ tokenType: TOKEN_TYPES.IDENTIFIER, text: identifier })
+
+      //
+      // advance forward past all of the characters in our identifier
+      //
       advance(runner);
       break;
+
     case isNumericCharacter(currentChar()):
+      //
+      // as we look ahead and find new characters to go in this constant
+      // we will put them in constantCharacters 
+      //
       const constantCharacters = [currentChar()];
+
+      //
+      // use the runner to look ahead and keep checking if the characters
+      // are valid constant chars
+      //
       runner = 1;
       while (isNumericCharacter(peek(runner))) {
         constantCharacters.push(peek(runner))
         runner += 1;
       }
+
+      //
+      // now lets take all the chars we found and put them together into
+      // a string to make a token out of
+      //
       const constant = constantCharacters.join('');
       tokens.push({ tokenType: TOKEN_TYPES.CONSTANT, text: constant })
+
+      //
+      // advance the runner forward so that we don't process all of the
+      // same characters again
+      //
       advance(runner);
       break;
+
     default:
+      //
+      // if we can't identify a token to associate with this character
+      // we need to throw an error and exit early
+      //
       console.error(
         "Lexing error: unknown character with ascii code:", currentChar().codePointAt(0)
       );
@@ -410,10 +471,14 @@ debugLog(...tokens.map(token => {
 }));
 debugLog();
 
+//
+// exit early if --lex command line flag was passed
+//
 if (stopAfterLexingOptionSet) {
-  debugLog('Exiting program execution after lexing because --lex was set');
+  debugLog('EXITING PROGRAM EARLY: exiting after lexing because --lex was set');
   exitSuccess();
 }
+
 
 /////////////////////////////////////////////////////////////////
 // Parse the tokens we found
