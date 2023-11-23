@@ -282,7 +282,13 @@ const isWhiteSpaceCharacter = (char) =>
   char.charCodeAt(0) === 32 // space
   || char.charCodeAt(0) === 9 // tab
   || char.charCodeAt(0) === 10 // line feed
-  || char.charCodeAt(0) === 13 // carriage return
+  || char.charCodeAt(0) === 13; // carriage return
+
+const isWordBoundaryCharacter = (char) =>
+  !(
+    isAlphaNumericCharacter(char)
+    || char === '_'
+  );
 
 //
 // Let's get the text from our input source file.
@@ -404,7 +410,20 @@ while (currentIndex < sourceFileTextBuffer.length) {
       }
 
       //
-      // Finally take all the chars we found and make a string of them
+      // Finally, the character after the identifier needs to be a word
+      // boundary character
+      //
+      if (!isWordBoundaryCharacter(peek(runner))) {
+        console.error(
+          `Lexing Error: invalid constant token starting at ${currentIndex}`
+        );
+        exitError();
+      }
+
+
+      //
+      // Now that we have confirmed runner iterates over a valid identifier,
+      // we can take all the chars we found and make a string of them
       //
       const identifier = identifierCharacters.join('');
       tokens.push({ tokenType: TOKEN_TYPES.IDENTIFIER, text: identifier })
@@ -430,6 +449,17 @@ while (currentIndex < sourceFileTextBuffer.length) {
       while (isNumericCharacter(peek(runner))) {
         constantCharacters.push(peek(runner))
         runner += 1;
+      }
+
+      //
+      // finally, the character after the constant needs to be a word
+      // boundary character
+      //
+      if (!isWordBoundaryCharacter(peek(runner))) {
+        console.error(
+          `Lexing Error: invalid constant token starting at ${currentIndex}`
+        );
+        exitError();
       }
 
       //
