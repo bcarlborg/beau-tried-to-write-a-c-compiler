@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { debug } = require('console');
+const { verify } = require('crypto');
 const fs = require('fs');
 
 /////////////////////////////////////////////////////////////////
@@ -513,6 +514,255 @@ if (stopAfterLexingOptionSet) {
 /////////////////////////////////////////////////////////////////
 // Parse the tokens we found
 /////////////////////////////////////////////////////////////////
+
+const parsingTokens = [...tokens];
+let currentTokenIndex = 0;
+
+const resetCurrentTokenIndex = (newIndex) => currentTokenIndex = newIndex;
+const currentToken = () => {
+  if (currentTokenIndex >= parsingTokens.length) {
+    return null;
+  }
+
+  return parsingTokens[currentTokenIndex];
+}
+const advanceToken = (count) => currentTokenIndex += count;
+const peekToken = (count) => {
+  if (currentTokenIndex + count >= parsingTokens.length) {
+    return null;
+  }
+
+  return parsingTokens[currentTokenIndex + count];
+};
+
+const AST_NODE_TYPES = {
+  PROGRAM_NODE: 'PROGRAM_NODE',
+  FUNCTION_NODE: 'FUNCTION_NODE',
+  STATEMENT_NODE: 'STATEMENT_NODE',
+  EXPRESSION_NODE: 'EXPRESSION_NODE',
+  IDENTIFIER_NODE: 'IDENTIFIER_NODE',
+  INTEGER_NODE: 'INTEGER_NODE',
+}
+
+const BASE_INDENT = '  ';
+const indentString = (indentLevel) => {
+  let outputString = '';
+  for (let i = 0; i < indentLevel; i++) {
+    outputString = outputString.concat(BASE_INDENT);
+  }
+  return outputString;
+}
+
+function programParser() {
+  const functionNode = functionParser();
+
+  if (functionNode) {
+    return {
+      nodeType: AST_NODE_TYPES.PROGRAM_NODE,
+      functionChild: functionNode,
+      prettyPrint: () => {
+        console.log('Program(');
+        functionNode.prettyPrint(1);
+        console.log(')');
+      }
+    }
+  } else {
+    console.error('Parsing error: unable to parse function node');
+    exitError();
+  }
+}
+
+function functionParser() {
+  const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
+
+  // parse the return type of the function
+  const intFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.INT_KEYWORD);
+  if (!intFound) {
+    resetTokens();
+    return null;
+  }
+
+  // parse the name of the fucntion
+  const functionNameIdentifierNode = identifierParser();
+  if (!functionNameIdentifierNode) {
+    resetTokens();
+    return null;
+  }
+
+  // parse left paren
+  const leftParenFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.LEFT_PAREN);
+  if (!leftParenFound) {
+    resetTokens();
+    return null;
+  }
+
+  // parse args
+  const voidFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.VOID_KEYWORD);
+  if (!voidFound) {
+    resetTokens();
+    return null;
+  }
+
+  // parse left paren around args
+  const rightParenFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.RIGHT_PAREN);
+  if (!rightParenFound) {
+    resetTokens();
+    return null;
+  }
+
+  // open curly brace aound the function body
+  const openingCurlyBraceFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.OPEN_BRACE);
+  if (!openingCurlyBraceFound) {
+    resetTokens();
+    return null;
+  }
+
+  // function body statement
+  const statementNode = statementParser();
+  if (!statementNode) {
+    resetTokens();
+    return null;
+  }
+
+  // closing curly brace around function body
+  const closingCurlyBraceFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.CLOSE_BRACE);
+  if (!closingCurlyBraceFound) {
+    resetTokens();
+    return null;
+  }
+
+  return {
+    nodeType: AST_NODE_TYPES.FUNCTION_NODE,
+    returnType: 'int',
+    functionNameIdentifier: functionNameIdentifierNode,
+    functionArgs: 'void',
+    functionBody: statementNode,
+    prettyPrint: (indentLevel) => {
+      const indents = indentString(indentLevel);
+      const innerIndents = indents.concat(BASE_INDENT);
+      console.log(`${indents}Function(`);
+      console.log(`${innerIndents}returnType=${'int'}`);
+      console.log(`${innerIndents}functionIdentifier=${functionNameIdentifierNode.text}`);
+      console.log(`${innerIndents}functionArgs=${'args'}`);
+      console.log(`${innerIndents}functionBody=`);
+      statementNode.prettyPrint(indentLevel + 2);
+      console.log(`${indents})`);
+    }
+  }
+}
+
+function statementParser() {
+  const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
+
+  const returnFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.RETURN_KEYWORD);
+  if (!returnFound) {
+    resetTokens();
+    return null;
+  }
+
+  const expressionNode = expressionParser();
+  if (!expressionNode) {
+    resetTokens();
+    return null;
+  }
+
+  const semiColonFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.SEMI_COLON);
+  if (!semiColonFound) {
+    resetTokens();
+    return null;
+  }
+  
+  return {
+    nodeType: AST_NODE_TYPES.STATEMENT_NODE,
+    expression: expressionNode,
+    prettyPrint: (indentLevel) => {
+      const indents = indentString(indentLevel);
+      const innerIndents = indents.concat(BASE_INDENT);
+      console.log(`${indents}Statement(`);
+      console.log(`${innerIndents}expression=`);
+      expressionNode.prettyPrint(indentLevel + 2);
+      console.log(`${indents})`);
+
+    }
+  }
+}
+
+function expressionParser() {
+  const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
+
+  const intNode = integerParser();
+  if (!intNode) {
+    resetTokens();
+    return null;
+  }
+
+  return {
+    nodeType: AST_NODE_TYPES.EXPRESSION_NODE,
+    expression: intNode,
+    prettyPrint: (indentLevel) => {
+      const indents = indentString(indentLevel);
+      const innerIndents = indents.concat(BASE_INDENT);
+      console.log(`${indents}Expression(`);
+      console.log(`${innerIndents}expressionValue=`);
+      intNode.prettyPrint(indentLevel + 2);
+      console.log(`${indents})`);
+    }
+  }
+}
+
+function identifierParser() {
+  const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
+
+  const potentialIdentifier = currentToken();
+  if (potentialIdentifier.tokenType !== TOKEN_TYPES.IDENTIFIER) {
+    resetTokens();
+    return null;
+  }
+
+  advanceToken(1);
+  return {
+    nodeType: AST_NODE_TYPES.IDENTIFIER_NODE,
+    identifierName: potentialIdentifier.text,
+  }
+}
+
+function integerParser() {
+  const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
+  
+  const potentialInteger = currentToken();
+  if (potentialInteger.tokenType !== TOKEN_TYPES.CONSTANT) {
+    resetTokens();
+    return null;
+  }
+
+  advanceToken(1);
+
+  return {
+    nodeType: AST_NODE_TYPES.INTEGER_NODE,
+    integer: potentialInteger.text,
+    prettyPrint: (indentLevel) => {
+      const indents = indentString(indentLevel);
+      const innerIndents = indents.concat(BASE_INDENT);
+      console.log(`${indents}Constant(`);
+      console.log(`${innerIndents}constantValue=${potentialInteger.text}`);
+      console.log(`${indents})`);
+    }
+  }
+}
+
+
+function verifyConcreteTokenAndAdvance(tokenType) {
+  if (currentToken()?.tokenType === tokenType) {
+    advanceToken(1);
+    return true;
+  }
+
+  return false;
+}
+
+const abstractSyntaxTree = programParser();
+abstractSyntaxTree.prettyPrint();
+
 
 
 /////////////////////////////////////////////////////////////////
