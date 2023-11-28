@@ -515,10 +515,23 @@ if (stopAfterLexingOptionSet) {
 // Parse the tokens we found
 /////////////////////////////////////////////////////////////////
 
+debugLog('---------------------------------------------');
+debugLog('PARSING');
+debugLog();
+debugLog('We will attempt to extract an AST from the tokens that were generated in lexing.');
+debugLog();
+
+//
+// We'll create a copy of our token list to iterate over when we are parsing
+//
+// We'll use the methods currentToken(), resetCurrentTokenIndex(), advanceToken()
+// to process the current and upcoming tokens while we are parsing.
+//
 const parsingTokens = [...tokens];
 let currentTokenIndex = 0;
 
 const resetCurrentTokenIndex = (newIndex) => currentTokenIndex = newIndex;
+
 const currentToken = () => {
   if (currentTokenIndex >= parsingTokens.length) {
     return null;
@@ -526,15 +539,14 @@ const currentToken = () => {
 
   return parsingTokens[currentTokenIndex];
 }
+
 const advanceToken = (count) => currentTokenIndex += count;
-const peekToken = (count) => {
-  if (currentTokenIndex + count >= parsingTokens.length) {
-    return null;
-  }
 
-  return parsingTokens[currentTokenIndex + count];
-};
 
+//
+// Here we specify all of the abstract syntax tree node types that we wish
+// to support.
+//
 const AST_NODE_TYPES = {
   PROGRAM_NODE: 'PROGRAM_NODE',
   FUNCTION_NODE: 'FUNCTION_NODE',
@@ -544,6 +556,11 @@ const AST_NODE_TYPES = {
   INTEGER_NODE: 'INTEGER_NODE',
 }
 
+//
+// We will want to pretty print our ast, and it will be useful to have a
+// helper to generate the appropriate indent level strings as our AST
+// nodes nest.
+//
 const BASE_INDENT = '  ';
 const indentString = (indentLevel) => {
   let outputString = '';
@@ -553,6 +570,17 @@ const indentString = (indentLevel) => {
   return outputString;
 }
 
+//
+// We will definie a nodeParser() for each ast node.
+// This parser will attempt to parse that particular AST
+// node at the current token.
+//
+// For all intents and purposes, this function is our "parser".
+// when we call this function, we process our token inputs
+// and attempt to craete an AST with a program AST node as root
+//
+
+// All ASTs for our project have program as a root
 function programParser() {
   const functionNode = functionParser();
 
@@ -560,18 +588,19 @@ function programParser() {
     return {
       nodeType: AST_NODE_TYPES.PROGRAM_NODE,
       functionChild: functionNode,
-      prettyPrint: () => {
-        console.log('Program(');
-        functionNode.prettyPrint(1);
-        console.log(')');
+      debugPrettyPrint: () => {
+        debugLog('Program(');
+        functionNode.debugPrettyPrint(1);
+        debugLog(')');
       }
     }
   } else {
-    console.error('Parsing error: unable to parse function node');
+    console.error('Parsing error: unable to identify valid parse for input program');
     exitError();
   }
 }
 
+// Parse an entire function declaration with its return type, name, args and body
 function functionParser() {
   const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
 
@@ -637,22 +666,29 @@ function functionParser() {
     functionNameIdentifier: functionNameIdentifierNode,
     functionArgs: 'void',
     functionBody: statementNode,
-    prettyPrint: (indentLevel) => {
+    debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
       const innerIndents = indents.concat(BASE_INDENT);
-      console.log(`${indents}Function(`);
-      console.log(`${innerIndents}returnType=${'int'}`);
-      console.log(`${innerIndents}functionIdentifier=${functionNameIdentifierNode.text}`);
-      console.log(`${innerIndents}functionArgs=${'args'}`);
-      console.log(`${innerIndents}functionBody=`);
-      statementNode.prettyPrint(indentLevel + 2);
-      console.log(`${indents})`);
+      debugLog(`${indents}Function(`);
+      debugLog(`${innerIndents}returnType=${'int'}`);
+      debugLog(`${innerIndents}functionIdentifier=${functionNameIdentifierNode.text}`);
+      debugLog(`${innerIndents}functionArgs=${'args'}`);
+      debugLog(`${innerIndents}functionBody=`);
+      statementNode.debugPrettyPrint(indentLevel + 2);
+      debugLog(`${indents})`);
     }
   }
 }
 
+// parse any statement
 function statementParser() {
   const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
+
+  //
+  // Currently, we are only parsing return statements, these checks can most likely
+  // be broken out into their own function returnStatementParser() when we add other
+  // new statements.
+  //
 
   const returnFound = verifyConcreteTokenAndAdvance(TOKEN_TYPES.RETURN_KEYWORD);
   if (!returnFound) {
@@ -675,21 +711,23 @@ function statementParser() {
   return {
     nodeType: AST_NODE_TYPES.STATEMENT_NODE,
     expression: expressionNode,
-    prettyPrint: (indentLevel) => {
+    debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
       const innerIndents = indents.concat(BASE_INDENT);
-      console.log(`${indents}Statement(`);
-      console.log(`${innerIndents}expression=`);
-      expressionNode.prettyPrint(indentLevel + 2);
-      console.log(`${indents})`);
+      debugLog(`${indents}Statement(`);
+      debugLog(`${innerIndents}expression=`);
+      expressionNode.debugPrettyPrint(indentLevel + 2);
+      debugLog(`${indents})`);
 
     }
   }
 }
 
+// parse any expression
 function expressionParser() {
   const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
 
+  // for now we only process expressions which are a single constant int
   const intNode = integerParser();
   if (!intNode) {
     resetTokens();
@@ -699,20 +737,23 @@ function expressionParser() {
   return {
     nodeType: AST_NODE_TYPES.EXPRESSION_NODE,
     expression: intNode,
-    prettyPrint: (indentLevel) => {
+    debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
       const innerIndents = indents.concat(BASE_INDENT);
-      console.log(`${indents}Expression(`);
-      console.log(`${innerIndents}expressionValue=`);
-      intNode.prettyPrint(indentLevel + 2);
-      console.log(`${indents})`);
+      debugLog(`${indents}Expression(`);
+      debugLog(`${innerIndents}expressionValue=`);
+      intNode.debugPrettyPrint(indentLevel + 2);
+      debugLog(`${indents})`);
     }
   }
 }
 
+// parse any identifier
 function identifierParser() {
   const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
 
+  // check to ensure there is some type of identifier at our current
+  // token
   const potentialIdentifier = currentToken();
   if (potentialIdentifier.tokenType !== TOKEN_TYPES.IDENTIFIER) {
     resetTokens();
@@ -726,6 +767,7 @@ function identifierParser() {
   }
 }
 
+// parse any integer constant
 function integerParser() {
   const resetTokens = () => resetCurrentTokenIndex(currentTokenIndex);
   
@@ -740,17 +782,26 @@ function integerParser() {
   return {
     nodeType: AST_NODE_TYPES.INTEGER_NODE,
     integer: potentialInteger.text,
-    prettyPrint: (indentLevel) => {
+    debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
       const innerIndents = indents.concat(BASE_INDENT);
-      console.log(`${indents}Constant(`);
-      console.log(`${innerIndents}constantValue=${potentialInteger.text}`);
-      console.log(`${indents})`);
+      debugLog(`${indents}Constant(`);
+      debugLog(`${innerIndents}constantValue=${potentialInteger.text}`);
+      debugLog(`${indents})`);
     }
   }
 }
 
 
+//
+// Sometimes in parsing we need to verify that a token is preset, but we do not
+// actually want to create an AST node for that token. For example, when parsing
+// an expression, we must verify that ';' is the last token in the statement.
+//
+// verifyConcreteTokenAndAdvance() allows us to do just that. It will tell us if
+// a particular token type can be found at the current token position in our input
+// stream. 
+//
 function verifyConcreteTokenAndAdvance(tokenType) {
   if (currentToken()?.tokenType === tokenType) {
     advanceToken(1);
@@ -760,9 +811,26 @@ function verifyConcreteTokenAndAdvance(tokenType) {
   return false;
 }
 
-const abstractSyntaxTree = programParser();
-abstractSyntaxTree.prettyPrint();
 
+//
+// This is the magic moment when we call our parser and process our input tokens!
+//
+const abstractSyntaxTree = programParser();
+
+//
+// Log a console friendly version of our AST for debugging purposes
+//
+debugLog('While parsing, the following ast was generated:');
+abstractSyntaxTree.debugPrettyPrint();
+debugLog();
+
+//
+// if the --parse command line option was set, we can exit here!
+//
+if (stopAfterParsingOptionSet) {
+  debugLog('exiting after parsing because --parse flag was passed')
+  exitSuccess();
+}
 
 
 /////////////////////////////////////////////////////////////////

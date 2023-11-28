@@ -146,7 +146,8 @@ ${COMPILER} ${COMPILER_DEBUG_FLAG} ${COMPILER_LEX_FLAG} ${COMPILER_PARSE_FLAG} -
 # if --lex or --parse were passed, then we don't want to continue
 # executing the script
 #
-if [ "$ARGS" = "--lex" ] || [ "$ARGS" = "--parse" ]; then
+
+if [ "$COMPILER_LEX_FLAG" = "--lex" ] || [ "$COMPILER_PARSE_FLAG" = "--parse" ]; then
   cleanup_and_exit_with_code 0
 fi
 
@@ -167,7 +168,7 @@ fi
 # Using gcc as out assembler for now
 #
 # TODO: uncomment linker call once our compiler outputs assembly
-# gcc "${ASSEMBLY_FILE}" -o "${OUTPUT_FILE_NAME}"
+gcc "${ASSEMBLY_FILE}" -o "${OUTPUT_FILE_NAME}"
 
 
 #####################################################################
