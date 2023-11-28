@@ -2,4 +2,4 @@
 _a very light weigt list of the next steps_
 
 ## Minor Todos
-- [ ] run parsing tests
+- [ ] continue on to assembly generation
