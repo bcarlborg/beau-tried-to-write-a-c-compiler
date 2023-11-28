@@ -540,6 +540,8 @@ const currentToken = () => {
   return parsingTokens[currentTokenIndex];
 }
 
+const tokenStreamHasRemainingOutput = () => currentTokenIndex <= parsingTokens.length - 1;
+
 const advanceToken = (count) => currentTokenIndex += count;
 
 
@@ -584,19 +586,32 @@ const indentString = (indentLevel) => {
 function programParser() {
   const functionNode = functionParser();
 
-  if (functionNode) {
-    return {
-      nodeType: AST_NODE_TYPES.PROGRAM_NODE,
-      functionChild: functionNode,
-      debugPrettyPrint: () => {
-        debugLog('Program(');
-        functionNode.debugPrettyPrint(1);
-        debugLog(')');
-      }
-    }
-  } else {
+  //
+  // if we couldn't identify a program AST node, then our parsing failed
+  //
+  if (!functionNode) {
     console.error('Parsing error: unable to identify valid parse for input program');
     exitError();
+  }
+
+  //
+  // If we found a program AST node, but there were still additional tokens after
+  // the input, then our parsing failed. Every token should be a decendant of our
+  // root program node.
+  //
+  if (tokenStreamHasRemainingOutput()) {
+    console.error('Parsing error: dangling tokens after program');
+    exitError();
+  }
+
+  return {
+    nodeType: AST_NODE_TYPES.PROGRAM_NODE,
+    functionChild: functionNode,
+    debugPrettyPrint: () => {
+      debugLog('Program(');
+      functionNode.debugPrettyPrint(1);
+      debugLog(')');
+    }
   }
 }
 
