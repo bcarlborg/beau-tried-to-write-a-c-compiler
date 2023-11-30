@@ -549,7 +549,7 @@ const advanceToken = (count) => currentTokenIndex += count;
 // Here we specify all of the abstract syntax tree node types that we wish
 // to support.
 //
-const AST_NODE_TYPES = {
+const C_AST_NODE_TYPES = {
   PROGRAM_NODE: 'PROGRAM_NODE',
   FUNCTION_NODE: 'FUNCTION_NODE',
   STATEMENT_NODE: 'STATEMENT_NODE',
@@ -605,7 +605,7 @@ function programParser() {
   }
 
   return {
-    nodeType: AST_NODE_TYPES.PROGRAM_NODE,
+    nodeType: C_AST_NODE_TYPES.PROGRAM_NODE,
     functionChild: functionNode,
     debugPrettyPrint: () => {
       debugLog('Program(');
@@ -676,7 +676,7 @@ function functionParser() {
   }
 
   return {
-    nodeType: AST_NODE_TYPES.FUNCTION_NODE,
+    nodeType: C_AST_NODE_TYPES.FUNCTION_NODE,
     returnType: 'int',
     functionNameIdentifier: functionNameIdentifierNode,
     functionArgs: 'void',
@@ -724,7 +724,7 @@ function statementParser() {
   }
   
   return {
-    nodeType: AST_NODE_TYPES.STATEMENT_NODE,
+    nodeType: C_AST_NODE_TYPES.STATEMENT_NODE,
     expression: expressionNode,
     debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
@@ -750,7 +750,7 @@ function expressionParser() {
   }
 
   return {
-    nodeType: AST_NODE_TYPES.EXPRESSION_NODE,
+    nodeType: C_AST_NODE_TYPES.EXPRESSION_NODE,
     expression: intNode,
     debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
@@ -777,7 +777,7 @@ function identifierParser() {
 
   advanceToken(1);
   return {
-    nodeType: AST_NODE_TYPES.IDENTIFIER_NODE,
+    nodeType: C_AST_NODE_TYPES.IDENTIFIER_NODE,
     identifierName: potentialIdentifier.text,
   }
 }
@@ -795,7 +795,7 @@ function integerParser() {
   advanceToken(1);
 
   return {
-    nodeType: AST_NODE_TYPES.INTEGER_NODE,
+    nodeType: C_AST_NODE_TYPES.INTEGER_NODE,
     integer: potentialInteger.text,
     debugPrettyPrint: (indentLevel) => {
       const indents = indentString(indentLevel);
@@ -830,13 +830,13 @@ function verifyConcreteTokenAndAdvance(tokenType) {
 //
 // This is the magic moment when we call our parser and process our input tokens!
 //
-const abstractSyntaxTree = programParser();
+const cAbstractSyntaxTree = programParser();
 
 //
 // Log a console friendly version of our AST for debugging purposes
 //
 debugLog('While parsing, the following ast was generated:');
-abstractSyntaxTree.debugPrettyPrint();
+cAbstractSyntaxTree.debugPrettyPrint();
 debugLog();
 
 //
@@ -849,8 +849,135 @@ if (stopAfterParsingOptionSet) {
 
 
 /////////////////////////////////////////////////////////////////
+// Codegen
+/////////////////////////////////////////////////////////////////
+
+//
+// In this stage, we take the abstract syntax tree created by the parser
+// and transform it into abstract syntax tree for our assembly code
+//
+
+//
+// Our assembly ast will have many nodes that are quite simillar to
+// the c ast... but also new ones
+//
+const ASM_AST_NODE_TYPES = {
+  PROGRAM_NODE: 'PROGRAM_NODE',
+  FUNCTION_NODE: 'FUNCTION_NODE',
+  MOV_INSTRUCTION_NODE: 'MOVE_INSTRUCTION_NODE',
+  RET_INSTRUCTION_NODE: 'RET_INSTRUCTION_NODE',
+  IMM_INT_OPERAND: 'IMM_INT_OPERAND',
+  REGISTER_OPERAND: 'REGISTER_OPERAND',
+};
+
+let currentCAstNode = cAbstractSyntaxTree;
+
+//
+// This is a recursive function that will do a depth first traversal 
+// over our C abstract syntax tree and and progressively create an
+// assembly abstract syntax tree from it
+//
+function transformCAstNodeIntoAsmAstNode(cAstNode)  {
+  const cAstNodeType = cAstNode.nodeType;
+
+  switch (cAstNodeType) {
+    case C_AST_NODE_TYPES.PROGRAM_NODE:
+      console.log('processing program node!');
+      const asmAstFunctionNode = transformCAstNodeIntoAsmAstNode(cAstNode.functionChild);
+      
+      return {
+        nodeType: ASM_AST_NODE_TYPES.PROGRAM_NODE,
+        functionChild: asmAstFunctionNode,
+        debugPrettyPrint: () => {
+          debugLog('Program(');
+          asmAstFunctionNode.debugPrettyPrint(1);
+          debugLog(')');
+        }
+      }
+
+    case C_AST_NODE_TYPES.FUNCTION_NODE:
+      const functionName = cAstNode.functionNameIdentifier.identifierName;
+
+      const asmInstructionsAstNodes = transformCAstNodeIntoAsmAstNode(cAstNode.functionBody);
+
+      return {
+        nodeType: ASM_AST_NODE_TYPES.FUNCTION_NODE,
+        debugPrettyPrint: (indentLevel) => {
+          const indents = indentString(indentLevel);
+          const innerIndents = indents.concat(BASE_INDENT);
+          const innerInnerIndents = innerIndents.concat(BASE_INDENT);
+          debugLog(`${indents}Function(`);
+          debugLog(`${innerIndents}name=${functionName}`);
+          debugLog(`${innerIndents}instructions=[`);
+          asmInstructionsAstNodes.forEach((node) => {
+            node.debugPrettyPrint(indentLevel + 2);
+            debugLog(`${innerInnerIndents},`)
+          });
+          debugLog(`${innerIndents}]`);
+          debugLog(`${indents})`);
+        }
+      };
+
+
+    case C_AST_NODE_TYPES.STATEMENT_NODE:
+      const asmInstructionExpression = cAstNode.expression.expression.integer;
+      return [{
+        nodeType: ASM_AST_NODE_TYPES.instruction,
+        instructionType: 'mov',
+        debugPrettyPrint: (indentLevel) => {
+          const indents = indentString(indentLevel);
+          const innerIndents = indents.concat(BASE_INDENT);
+          debugLog(`${indents}MOV(`);
+          debugLog(`${innerIndents}exp=${asmInstructionExpression}`);
+          debugLog(`${innerIndents}register=EAX`);
+          debugLog(`${indents})`);
+        }
+      },
+      {
+        nodeType: ASM_AST_NODE_TYPES.instruction,
+        instructionType: 'return',
+        debugPrettyPrint: (indentLevel) => {
+          const indents = indentString(indentLevel);
+          const innerIndents = indents.concat(BASE_INDENT);
+          debugLog(`${indents}RET()`);
+        }
+      }
+    ];
+
+    default:
+      console.error(`Codegen error: unable to process C ast node type of ${cAstNodeType}`);
+      exitError();
+  }
+}
+
+//
+// This is where we actually generate the abstract syntax tree for our
+// assembly code
+//
+const asmAstNodes = transformCAstNodeIntoAsmAstNode(currentCAstNode);
+
+//
+// Debug log the assembly tree
+//
+debugLog('In codegen, the following assembly ast was generated:');
+asmAstNodes.debugPrettyPrint();
+
+
+/////////////////////////////////////////////////////////////////
+// Code Emission
+/////////////////////////////////////////////////////////////////
+
+//
+// Now we will traverse the ASM abstract syntax tree that we just
+// generated and construct a string to write out as our assembly file
+//
+
+// TODO
+
+
+/////////////////////////////////////////////////////////////////
 // Create our output file
 /////////////////////////////////////////////////////////////////
 
-fs.writeFileSync(outputFile, 'foobar\n');
+fs.writeFileSync(outputFile, '');
 exitSuccess();
