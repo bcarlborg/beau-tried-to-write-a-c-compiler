@@ -902,6 +902,8 @@ function transformCAstNodeIntoAsmAstNode(cAstNode)  {
 
       return {
         nodeType: ASM_AST_NODE_TYPES.FUNCTION_NODE,
+        functionName: functionName,
+        instructions: asmInstructionsAstNodes,
         debugPrettyPrint: (indentLevel) => {
           const indents = indentString(indentLevel);
           const innerIndents = indents.concat(BASE_INDENT);
@@ -922,8 +924,9 @@ function transformCAstNodeIntoAsmAstNode(cAstNode)  {
     case C_AST_NODE_TYPES.STATEMENT_NODE:
       const asmInstructionExpression = cAstNode.expression.expression.integer;
       return [{
-        nodeType: ASM_AST_NODE_TYPES.instruction,
-        instructionType: 'mov',
+        nodeType: ASM_AST_NODE_TYPES.MOV_INSTRUCTION_NODE,
+        imm: asmInstructionExpression,
+        reg: 'eax',
         debugPrettyPrint: (indentLevel) => {
           const indents = indentString(indentLevel);
           const innerIndents = indents.concat(BASE_INDENT);
@@ -934,7 +937,7 @@ function transformCAstNodeIntoAsmAstNode(cAstNode)  {
         }
       },
       {
-        nodeType: ASM_AST_NODE_TYPES.instruction,
+        nodeType: ASM_AST_NODE_TYPES.RET_INSTRUCTION_NODE,
         instructionType: 'return',
         debugPrettyPrint: (indentLevel) => {
           const indents = indentString(indentLevel);
@@ -972,12 +975,48 @@ asmAstNodes.debugPrettyPrint();
 // generated and construct a string to write out as our assembly file
 //
 
-// TODO
+function emitCodeFromAsmAstNode(asmAstNode) {
+  const asmAstNodeType = asmAstNode.nodeType;
+
+  switch (asmAstNodeType) {
+    case ASM_AST_NODE_TYPES.PROGRAM_NODE:
+      const functionCode = emitCodeFromAsmAstNode(asmAstNode.functionChild);
+      return functionCode;
+
+    case ASM_AST_NODE_TYPES.FUNCTION_NODE:
+      const instructions = asmAstNode.instructions.map(
+        (instruction) => {
+          return emitCodeFromAsmAstNode(instruction);
+        }
+      );
+
+      const functionLines = [];
+      functionLines.push(`    .globl _${asmAstNode.functionName}`)
+      functionLines.push(`_${asmAstNode.functionName}:`);
+      functionLines.push(...instructions)
+      functionLines.push('\n');
+      return functionLines.join('\n');
+
+    case ASM_AST_NODE_TYPES.MOV_INSTRUCTION_NODE:
+      return `    movl $${asmAstNode.imm}, %${asmAstNode.reg}`
+
+    case ASM_AST_NODE_TYPES.RET_INSTRUCTION_NODE:
+      return `    ret`
+
+    default:
+      console.error(`Code emission error: unable to process asm ast node type of ${asmAstNodeType}`);
+      exitError();
+  }
+}
+
+const code = emitCodeFromAsmAstNode(asmAstNodes);
+console.log('code:');
+console.log(code);
 
 
 /////////////////////////////////////////////////////////////////
 // Create our output file
 /////////////////////////////////////////////////////////////////
 
-fs.writeFileSync(outputFile, '');
+fs.writeFileSync(outputFile, code);
 exitSuccess();
