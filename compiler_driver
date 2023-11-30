@@ -167,10 +167,7 @@ fi
 #
 # Using gcc as out assembler for now
 #
-# TODO: uncomment linker call once our compiler outputs assembly
-echo 
-echo "${ASSEMBLY_FILE}"
-echo 
+
 gcc "${ASSEMBLY_FILE}" -o "${OUTPUT_FILE_NAME}"
 
 

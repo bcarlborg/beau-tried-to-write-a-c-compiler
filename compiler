@@ -852,6 +852,12 @@ if (stopAfterParsingOptionSet) {
 // Codegen
 /////////////////////////////////////////////////////////////////
 
+debugLog('---------------------------------------------');
+debugLog('Code Gen');
+debugLog();
+debugLog('We will attempt to extract an intermediate representation of our code from the AST');
+debugLog();
+
 //
 // In this stage, we take the abstract syntax tree created by the parser
 // and transform it into abstract syntax tree for our assembly code
@@ -964,11 +970,19 @@ const asmAstNodes = transformCAstNodeIntoAsmAstNode(currentCAstNode);
 //
 debugLog('In codegen, the following assembly ast was generated:');
 asmAstNodes.debugPrettyPrint();
+debugLog();
 
 
 /////////////////////////////////////////////////////////////////
 // Code Emission
 /////////////////////////////////////////////////////////////////
+
+debugLog('---------------------------------------------');
+debugLog('Code Emission');
+debugLog();
+debugLog('Lets build some assembly code from our intermediate representation!');
+debugLog();
+
 
 //
 // Now we will traverse the ASM abstract syntax tree that we just
@@ -1009,9 +1023,9 @@ function emitCodeFromAsmAstNode(asmAstNode) {
   }
 }
 
+debugLog('The following code was created during the code emission phase:')
 const code = emitCodeFromAsmAstNode(asmAstNodes);
-console.log('code:');
-console.log(code);
+debugLog(code);
 
 
 /////////////////////////////////////////////////////////////////
